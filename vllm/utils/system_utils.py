@@ -25,6 +25,23 @@ logger = init_logger(__name__)
 CYAN = "\033[1;36m"
 RESET = "\033[0;0m"
 
+_LOG_REDIRECT_PATH = "/fast/brank/vllm/my_log.log"
+_LOG_FILE_HANDLE: TextIO | None = None
+
+
+def _get_log_file() -> TextIO:
+    """Return a shared log file handle, creating it if necessary."""
+    global _LOG_FILE_HANDLE
+    if _LOG_FILE_HANDLE is None or _LOG_FILE_HANDLE.closed:
+        os.makedirs(os.path.dirname(_LOG_REDIRECT_PATH), exist_ok=True)
+        _LOG_FILE_HANDLE = open(
+            _LOG_REDIRECT_PATH,
+            "a",
+            encoding="utf-8",
+            buffering=1,
+        )
+    return _LOG_FILE_HANDLE
+
 
 # Environment variable utilities
 
@@ -172,8 +189,10 @@ def decorate_logs(process_name: str | None = None) -> None:
         process_name = get_mp_context().current_process().name
 
     pid = os.getpid()
-    _add_prefix(sys.stdout, process_name, pid)
-    _add_prefix(sys.stderr, process_name, pid)
+    log_file = _get_log_file()
+    sys.stdout = log_file
+    sys.stderr = log_file
+    _add_prefix(log_file, process_name, pid)
 
 
 def kill_process_tree(pid: int):
